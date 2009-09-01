@@ -321,6 +321,33 @@ class AttachmentTest < Test::Unit::TestCase
       end
     end
   end
+  
+  
+  context "An attachment with :processors that is a proc with a condition" do
+    setup do
+      rebuild_model :styles => { :normal => '' }, :processors => lambda { |a| a.test? ? [ :test ] : [ :thumbnail ] }
+      
+      @file = File.new(File.join(File.dirname(__FILE__),
+                                 "fixtures",
+                                 "5k.png"), 'rb')
+      @dummyA = Dummy.new
+      @dummyA.stubs(:test?).returns(true)
+      
+      @dummyB = Dummy.new
+      @dummyB.stubs(:test?).returns(false)
+    end
+
+    should "have the correct processors" do
+      @dummyA.avatar = @file
+      @attachmentA = @dummyA.avatar
+      assert_equal [ :test ], @attachmentA.styles[:normal][:processors]
+      
+      @dummyB.avatar = @file
+      @attachmentB = @dummyB.avatar
+      assert_equal [ :thumbnail ], @attachmentB.styles[:normal][:processors]
+    end
+  end
+  
 
   context "An attachment with erroring processor" do
     setup do
