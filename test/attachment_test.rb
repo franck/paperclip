@@ -567,6 +567,85 @@ class AttachmentTest < Test::Unit::TestCase
         @attachment.stubs(:instance_read).with(:file_name).returns("5k.old.png")
         assert_equal File.expand_path("./test/../tmp/avatars/dummies/original/#{@instance.id}/5k.old.png"), File.expand_path(@attachment.path)
       end
+      
+      context "without :process_later :options" do
+        setup do
+          options = { :styles => { :thumb => "100x100" }}
+          @attachment = Paperclip::Attachment.new(:avatar,
+                                                  @instance,
+                                                  options)
+        end
+        
+        should "update processed_at column" do
+          now = Time.now
+          Time.stubs(:now).returns(now)
+          @attachment.assign(@file)
+          assert_equal now.to_i, @attachment.processed_at
+        end
+        
+        should "commit the style file to disk" do
+          @attachment.assign(@file)
+          @attachment.save
+          io = @attachment.to_file(:thumb)
+          assert File.exists?(io)
+          assert ! io.is_a?(::Tempfile)
+          io.close
+        end
+
+        
+      end
+      
+      # =process_later
+      context "with :process_later options" do
+        setup do
+          options = { :styles => { :thumb => "100x100" },
+                      :process_later => true
+                    }
+          @attachment = Paperclip::Attachment.new(:avatar,
+                                                  @instance,
+                                                  options)
+        end
+        
+        should "not update processed_at column" do
+          now = Time.now
+          Time.stubs(:now).returns(now)
+          @attachment.assign(@file)
+          assert_nil @attachment.processed_at
+        end
+
+        should "not commit the style file to disk" do
+          @attachment.assign(@file)
+          @attachment.save          
+          assert_nil = @attachment.to_file(:thumb)
+        end
+        
+        context "on reprocessing the file" do
+         
+          should "commit the style file to disk" do
+            now = Time.now
+            Time.stubs(:now).returns(now)
+            @attachment.assign(@file)
+            @attachment.save
+            @attachment.reprocess!
+            io = @attachment.to_file(:thumb)
+            assert File.exists?(io)
+            assert ! io.is_a?(::Tempfile)
+            io.close
+          end
+          
+          should "update processed_at column" do
+            now = Time.now
+            Time.stubs(:now).returns(now)
+            @attachment.assign(@file)
+            @attachment.save
+            assert_nil @attachment.processed_at
+            @attachment.reprocess!
+            assert_equal now.to_i, @attachment.processed_at
+          end
+          
+        end
+        
+      end
 
       context "when expecting three styles" do
         setup do

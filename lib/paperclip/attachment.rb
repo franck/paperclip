@@ -14,7 +14,8 @@ module Paperclip
         :default_style => :original,
         :validations   => [],
         :storage       => :filesystem,
-        :whiny         => Paperclip.options[:whiny] || Paperclip.options[:whiny_thumbnails]
+        :whiny         => Paperclip.options[:whiny] || Paperclip.options[:whiny_thumbnails],
+        :process_later => false
       }
     end
 
@@ -48,6 +49,7 @@ module Paperclip
       @errors            = {}
       @validation_errors = nil
       @dirty             = false
+      @process_later     = options[:process_later]
 
       normalize_style_definition
       initialize_storage
@@ -84,7 +86,11 @@ module Paperclip
 
       @dirty = true
 
-      post_process if valid?
+      unless process_later?
+        post_process if valid?
+        instance_write(:processed_at, Time.now)      
+      end
+
  
       # Reset the file size if the original file was reprocessed.
       instance_write(:file_size, @queued_for_write[:original].size.to_i)
@@ -132,6 +138,11 @@ module Paperclip
     # Returns true if there are changes that need to be saved.
     def dirty?
       @dirty
+    end
+    
+    # Returns true if the process should append later using reprocess! method
+    def process_later?
+      @process_later
     end
 
     # Saves the file, if there are no errors. If there are, it flushes them to
@@ -189,6 +200,11 @@ module Paperclip
       time = instance_read(:updated_at)
       time && time.to_i
     end
+    
+    def processed_at
+      time = instance_read(:processed_at)
+      time && time.to_i
+    end
 
     # Paths and URLs can have a number of variables interpolated into them
     # to vary the storage location based on name, id, style, class, etc.
@@ -215,6 +231,7 @@ module Paperclip
 
         @queued_for_write = { :original => new_original }
         post_process
+        instance_write(:processed_at, Time.now)
 
         old_original.close if old_original.respond_to?(:close)
 
